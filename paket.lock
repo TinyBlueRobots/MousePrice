@@ -1,0 +1,11 @@
+FRAMEWORK: NET452
+NUGET
+  remote: https://www.nuget.org/api/v2
+    FSharp.Core (4.0.0.1)
+    FSharp.Data (2.3.2)
+    Hopac (0.3.23)
+      FSharp.Core (>= 3.1.2.5)
+    Http.fs (4.1)
+      FSharp.Core (>= 3.1.2.5)
+      Hopac (>= 0.3.21)
+    Zlib.Portable (1.11)
