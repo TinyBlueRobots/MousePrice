@@ -94,12 +94,18 @@ module Downloader =
     match fileName () with
     | Some loc ->
         use cli = new WebClient ()
-        cli.AsyncDownloadFile ( uri, Path.Combine ( executingDir (), "downloads", loc ) ) |> Async.RunSynchronously
-    | None -> ()
+        let downloadedGzip = Path.Combine ( downloadDir, loc )
+        async 
+          { do! cli.AsyncDownloadFile ( uri, downloadedGzip )
+            return downloadedGzip }
+        |> Some
+    | None -> None
 
   let downloadGzips all =
     all
-    |> Seq.iter download
+    |> Seq.map download
+    |> Seq.filter Option.isSome
+    |> Seq.map Option.get
 
 [<AutoOpen>]
 module Unzipper =
@@ -121,6 +127,7 @@ module Unzipper =
             reader.Close ()
             reader.Dispose () }
     File.AppendAllLines ( unzippedFile , content )
+    unzippedFile
 
 [<AutoOpen>]
 module MousePricePropertyGetter =
@@ -128,7 +135,38 @@ module MousePricePropertyGetter =
   open Downloader
   open Unzipper
 
-  let getProperties () = getSiteMap () |> downloadGzips
+
+  let asyncArray (sitemaps:seq<Async<string>>) = 
+    let sms=
+      [| for sitemap in sitemaps do
+          yield
+              async {
+                return! sitemap }
+              |> Async.RunSynchronously |]
+    downloadGzips sms
+  
+  let unzipArray = Array.map unzip
+  let mapper (item:seq<Async<string>>) =
+    let mm a = async { return unzipArray a } 
+    let asyncs =
+      item
+      |> asyncArray
+      |> Seq.map Async.RunSynchronously
+      |> Seq.toArray
+      |> mm
+
+    Async.Parallel item
+
+  let getProperties () = 
+    async {
+      let! props = 
+        getSiteMap () 
+        |> downloadGzips
+        |> Async.Parallel
+      return props |> Seq.map unzip
+    }
+    |> Async.RunSynchronously
+
 
 
 
