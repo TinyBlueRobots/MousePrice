@@ -1,11 +1,19 @@
 #load """paket-files/include-scripts/net452/include.main.group.fsx"""
 #r "System.Xml.Linq.dll"
+
+[<AutoOpen>]
+module Utils =
+  open System.IO
+  let createIfNotExists dir =
+        if not <| Directory.Exists dir then Directory.CreateDirectory ( dir ) |> ignore
+
 [<AutoOpen>]
 module SitemapRetrieval =
   open System
   open Hopac
   open HttpFs.Client
   open FSharp.Data
+  open Utils
 
   type Sitemap = XmlProvider<"""<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>http://www.mouseprice.com/SiteMapHandler/SiteMap1.xml.gz</loc></sitemap></sitemapindex>""">
     
@@ -76,7 +84,7 @@ module Downloader =
   let executingDir () = Directory.GetCurrentDirectory ()
   let download link =
     let downloadDir = Path.Combine ( executingDir (), "downloads" )
-    if not <| Directory.Exists downloadDir then Directory.CreateDirectory ( downloadDir ) |> ignore
+    createIfNotExists downloadDir
     let uri = 
       (Uri link)
     let fileName () = 
@@ -95,10 +103,25 @@ module Downloader =
 
 [<AutoOpen>]
 module Unzipper =
-  open Ionic
+  open System.IO
+  open System.IO.Compression
+  open Utils
 
-  let unzip zip =
-    ()
+  let unzip gzip =
+    createIfNotExists "unzipped"
+    let unzippedFile = Path.Combine ( "unzipped", Path.GetFileNameWithoutExtension ( gzip ) )
+    let content =
+      seq { let reader = 
+              new StreamReader 
+                ( new GZipStream
+                    ( File.OpenRead ( gzip ), 
+                      CompressionMode.Decompress ) )
+            while not reader.EndOfStream do
+              yield reader.ReadLine ()
+            reader.Close ()
+            reader.Dispose () }
+    File.AppendAllLines ( unzippedFile , content )
+
 [<AutoOpen>]
 module MousePricePropertyGetter =
   open SitemapRetrieval
@@ -106,3 +129,8 @@ module MousePricePropertyGetter =
   open Unzipper
 
   let getProperties () = getSiteMap () |> downloadGzips
+
+
+
+
+  // unzip "/Users/markgray/dev/MousePriceScraper/downloads/SiteMap1.xml.gz"
