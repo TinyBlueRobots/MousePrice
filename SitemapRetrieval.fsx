@@ -147,28 +147,31 @@ module MousePricePropertyGetter =
   
   let unzipArray = Array.map unzip
   let mapper (item:seq<Async<string>>) =
-    let mm a = async { return unzipArray a } 
+    let unzipper a = async { return unzipArray a } 
     let asyncs =
       item
       |> asyncArray
       |> Seq.map Async.RunSynchronously
       |> Seq.toArray
-      |> mm
+      |> unzipper
 
     Async.Parallel item
 
   let getProperties () = 
-    async {
-      let! props = 
-        getSiteMap () 
-        |> downloadGzips
-        |> Async.Parallel
-      return props |> Seq.map unzip
-    }
+    let xxx =
+      async {
+        let! props = 
+          getSiteMap () 
+          |> Seq.take 10
+          |> downloadGzips
+          |> Async.Parallel
+        return props |> unzipArray
+      }
+    xxx
     |> Async.RunSynchronously
 
 
 
 
 
-  // unzip "/Users/markgray/dev/MousePriceScraper/downloads/SiteMap1.xml.gz"
+  // unzip "/Users/markgray/dev/MousePriceScraper/downloads/SiteMap6.xml.gz"
