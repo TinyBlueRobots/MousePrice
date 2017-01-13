@@ -7,6 +7,9 @@ module Utils =
   let createIfNotExists dir =
         if not <| Directory.Exists dir then Directory.CreateDirectory ( dir ) |> ignore
 
+  let getUnzippedFiles () = 
+    Directory.GetFiles ( "unzipped" )
+
 [<AutoOpen>]
 module SitemapRetrieval =
   open System
@@ -130,11 +133,46 @@ module Unzipper =
     unzippedFile
 
 [<AutoOpen>]
+module Reader =
+  open System.IO
+  open FSharp.Data
+  open Utils
+
+  type Properties = XmlProvider<"""<?xml version="1.0" encoding="utf-8"?><urlset xmlns="http://www.google.com/schemas/sitemap/0.9"><url><loc>http://www.mouseprice.com/area-guide/AB10</loc></url></urlset>""">
+
+  let checkForSales ( text : string ) =
+    text.Contains "for-sale"
+
+  let textToXml ( reader : TextReader ) =
+    let x = Properties.Load reader
+    x.XElement.Descendants ()
+    |> Seq.filter ( fun e -> e.Name.LocalName = "url" )
+    |> Seq.map ( fun e -> e.Value )
+  
+  let checkXml ( filename : string ) =
+    let file = sprintf "/Users/markgray/dev/MousePriceScraper/%s" filename
+    let rdr = new StreamReader ( File.OpenRead file ) // :> TextReader
+    let read = textToXml rdr
+    rdr.Close ()
+    rdr.Dispose ()
+    read |> Seq.exists checkForSales
+
+  let loadAndCheckFiles files =
+    files
+    |> Seq.map checkXml
+    |> Seq.reduce (||)
+
+(*
+   Reader.checkXml "/Users/markgray/dev/MousePriceScraper/unzipped/SiteMap1.xml"
+   textToXml it
+*)
+
+[<AutoOpen>]
 module MousePricePropertyGetter =
   open SitemapRetrieval
   open Downloader
   open Unzipper
-
+  open Reader
 
   let asyncArray (sitemaps:seq<Async<string>>) = 
     let sms=
@@ -157,21 +195,21 @@ module MousePricePropertyGetter =
 
     Async.Parallel item
 
-  let getProperties () = 
+  let getProperties size = 
     let xxx =
       async {
         let! props = 
           getSiteMap () 
-          |> Seq.take 10
+          |> Seq.take size
           |> downloadGzips
           |> Async.Parallel
         return props |> unzipArray
       }
     xxx
     |> Async.RunSynchronously
+    |> loadAndCheckFiles
 
-
-
-
+  // Delete "downloads" & "unzipped" then run the next line
+  // getProperties 550
 
   // unzip "/Users/markgray/dev/MousePriceScraper/downloads/SiteMap6.xml.gz"
